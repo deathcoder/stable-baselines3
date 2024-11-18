@@ -3,8 +3,45 @@
 Changelog
 ==========
 
-Release 2.4.0a9 (WIP)
+Release 2.5.0a0 (WIP)
 --------------------------
+
+Breaking Changes:
+^^^^^^^^^^^^^^^^^
+- Increased minimum required version of PyTorch to 2.3.0
+- Removed support for Python 3.8
+
+New Features:
+^^^^^^^^^^^^^
+- Added support for NumPy v2.0: ``VecNormalize`` now cast normalized rewards to float32, updated bit flipping env to avoid overflow issues too
+- Added official support for Python 3.12
+
+Bug Fixes:
+^^^^^^^^^^
+
+`SB3-Contrib`_
+^^^^^^^^^^^^^^
+
+`RL Zoo`_
+^^^^^^^^^
+
+`SBX`_ (SB3 + Jax)
+^^^^^^^^^^^^^^^^^^
+
+Deprecations:
+^^^^^^^^^^^^^
+
+Others:
+^^^^^^^
+
+Documentation:
+^^^^^^^^^^^^^^
+
+
+Release 2.4.0 (2024-11-18)
+--------------------------
+
+**New algorithm: CrossQ in SB3 Contrib, Gymnasium v1.0 support**
 
 .. note::
 
@@ -16,18 +53,20 @@ Release 2.4.0a9 (WIP)
 .. warning::
 
     Stable-Baselines3 (SB3) v2.4.0 will be the last one supporting Python 3.8 (end of life in October 2024)
-    and PyTorch < 2.0.
-    We highly recommended you to upgrade to Python >= 3.9 and PyTorch >= 2.0.
+    and PyTorch < 2.3.
+    We highly recommended you to upgrade to Python >= 3.9 and PyTorch >= 2.3 (compatible with NumPy v2).
 
 
 Breaking Changes:
 ^^^^^^^^^^^^^^^^^
+- Increased minimum required version of Gymnasium to 0.29.1
 
 New Features:
 ^^^^^^^^^^^^^
 - Added support for ``pre_linear_modules`` and ``post_linear_modules`` in ``create_mlp`` (useful for adding normalization layers, like in DroQ or CrossQ)
 - Enabled np.ndarray logging for TensorBoardOutputFormat as histogram (see GH#1634) (@iwishwasaneagle)
 - Updated env checker to warn users when using multi-dim array to define `MultiDiscrete` spaces
+- Added support for Gymnasium v1.0
 
 Bug Fixes:
 ^^^^^^^^^^
@@ -43,6 +82,10 @@ Bug Fixes:
 
 `SB3-Contrib`_
 ^^^^^^^^^^^^^^
+- Added ``CrossQ`` algorithm, from "Batch Normalization in Deep Reinforcement Learning" paper (@danielpalen)
+- Added ``BatchRenorm`` PyTorch layer used in ``CrossQ`` (@danielpalen)
+- Updated QR-DQN optimizer input to only include quantile_net parameters (@corentinlger)
+- Fixed loading QRDQN changes `target_update_interval` (@jak3122)
 
 `RL Zoo`_
 ^^^^^^^^^
@@ -51,6 +94,7 @@ Bug Fixes:
 `SBX`_ (SB3 + Jax)
 ^^^^^^^^^^^^^^^^^^
 - Added CNN support for DQN
+- Bug fix for SAC and related algorithms, optimize log of ent coeff to be consistent with SB3
 
 Deprecations:
 ^^^^^^^^^^^^^
@@ -60,12 +104,16 @@ Others:
 - Fixed various typos (@cschindlbeck)
 - Remove unnecessary SDE noise resampling in PPO update (@brn-dev)
 - Updated PyTorch version on CI to 2.3.1
-
-Bug Fixes:
-^^^^^^^^^^
+- Added a warning to recommend using CPU with on policy algorithms (A2C/PPO) and ``MlpPolicy``
+- Switched to uv to download packages faster on GitHub CI
+- Updated dependencies for read the doc
+- Removed unnecessary ``copy_obs_dict`` method for ``SubprocVecEnv``, remove the use of ordered dict and rename ``flatten_obs`` to ``stack_obs``
 
 Documentation:
 ^^^^^^^^^^^^^^
+- Updated PPO doc to recommend using CPU with ``MlpPolicy``
+- Clarified documentation about planned features and citing software
+- Added a note about the fact we are optimizing log of ent coeff for SAC
 
 Release 2.3.2 (2024-04-27)
 --------------------------
@@ -653,6 +701,7 @@ New Features:
 - Added checkpoints for replay buffer and ``VecNormalize`` statistics (@anand-bala)
 - Added option for ``Monitor`` to append to existing file instead of overriding (@sidney-tio)
 - The env checker now raises an error when using dict observation spaces and observation keys don't match observation space keys
+- Use MacOS Metal "mps" device when available
 
 `SB3-Contrib`_
 ^^^^^^^^^^^^^^
@@ -710,6 +759,7 @@ Breaking Changes:
 
 New Features:
 ^^^^^^^^^^^^^
+- Save cloudpickle version
 
 
 `SB3-Contrib`_

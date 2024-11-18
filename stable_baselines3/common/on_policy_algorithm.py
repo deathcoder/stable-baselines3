@@ -1,6 +1,7 @@
 import sys
 import time
-from typing import Any, Dict, List, Optional, Tuple, Type, TypeVar, Union
+import warnings
+from typing import Any, Optional, TypeVar, Union
 
 import numpy as np
 import torch as th
@@ -59,7 +60,7 @@ class OnPolicyAlgorithm(BaseAlgorithm):
 
     def __init__(
         self,
-        policy: Union[str, Type[ActorCriticPolicy]],
+        policy: Union[str, type[ActorCriticPolicy]],
         env: Union[GymEnv, str],
         learning_rate: Union[float, Schedule],
         n_steps: int,
@@ -70,17 +71,17 @@ class OnPolicyAlgorithm(BaseAlgorithm):
         max_grad_norm: float,
         use_sde: bool,
         sde_sample_freq: int,
-        rollout_buffer_class: Optional[Type[RolloutBuffer]] = None,
-        rollout_buffer_kwargs: Optional[Dict[str, Any]] = None,
+        rollout_buffer_class: Optional[type[RolloutBuffer]] = None,
+        rollout_buffer_kwargs: Optional[dict[str, Any]] = None,
         stats_window_size: int = 100,
         tensorboard_log: Optional[str] = None,
         monitor_wrapper: bool = True,
-        policy_kwargs: Optional[Dict[str, Any]] = None,
+        policy_kwargs: Optional[dict[str, Any]] = None,
         verbose: int = 0,
         seed: Optional[int] = None,
         device: Union[th.device, str] = "auto",
         _init_setup_model: bool = True,
-        supported_action_spaces: Optional[Tuple[Type[spaces.Space], ...]] = None,
+        supported_action_spaces: Optional[tuple[type[spaces.Space], ...]] = None,
     ):
         super().__init__(
             policy=policy,
@@ -135,6 +136,28 @@ class OnPolicyAlgorithm(BaseAlgorithm):
             self.observation_space, self.action_space, self.lr_schedule, use_sde=self.use_sde, **self.policy_kwargs
         )
         self.policy = self.policy.to(self.device)
+        # Warn when not using CPU with MlpPolicy
+        self._maybe_recommend_cpu()
+
+    def _maybe_recommend_cpu(self, mlp_class_name: str = "ActorCriticPolicy") -> None:
+        """
+        Recommend to use CPU only when using A2C/PPO with MlpPolicy.
+
+        :param: The name of the class for the default MlpPolicy.
+        """
+        policy_class_name = self.policy_class.__name__
+        if self.device != th.device("cpu") and policy_class_name == mlp_class_name:
+            warnings.warn(
+                f"You are trying to run {self.__class__.__name__} on the GPU, "
+                "but it is primarily intended to run on the CPU when not using a CNN policy "
+                f"(you are using {policy_class_name} which should be a MlpPolicy). "
+                "See https://github.com/DLR-RM/stable-baselines3/issues/1245 "
+                "for more info. "
+                "You can pass `device='cpu'` or `export CUDA_VISIBLE_DEVICES=` to force using the CPU."
+                "Note: The model will train, but the GPU utilization will be poor and "
+                "the training might take longer than on CPU.",
+                UserWarning,
+            )
 
     def collect_rollouts(
         self,
@@ -316,7 +339,7 @@ class OnPolicyAlgorithm(BaseAlgorithm):
 
         return self
 
-    def _get_torch_save_params(self) -> Tuple[List[str], List[str]]:
+    def _get_torch_save_params(self) -> tuple[list[str], list[str]]:
         state_dicts = ["policy", "policy.optimizer"]
 
         return state_dicts, []

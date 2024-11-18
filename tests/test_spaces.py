@@ -1,9 +1,10 @@
 from dataclasses import dataclass
-from typing import Dict, Optional
+from typing import Optional
 
 import gymnasium as gym
 import numpy as np
 import pytest
+import torch as th
 from gymnasium import spaces
 from gymnasium.spaces.space import Space
 
@@ -24,7 +25,7 @@ class DummyEnv(gym.Env):
     def step(self, action):
         return self.observation_space.sample(), 0.0, False, False, {}
 
-    def reset(self, *, seed: Optional[int] = None, options: Optional[Dict] = None):
+    def reset(self, *, seed: Optional[int] = None, options: Optional[dict] = None):
         if seed is not None:
             super().reset(seed=seed)
         return self.observation_space.sample(), {}
@@ -151,6 +152,8 @@ def test_discrete_obs_space(model_class, env):
     ],
 )
 def test_float64_action_space(model_class, obs_space, action_space):
+    if hasattr(th, "backends") and th.backends.mps.is_built():
+        pytest.skip("MPS framework doesn't support float64")
     env = DummyEnv(obs_space, action_space)
     env = gym.wrappers.TimeLimit(env, max_episode_steps=200)
     if isinstance(env.observation_space, spaces.Dict):

@@ -4,8 +4,9 @@ import platform
 import random
 import re
 from collections import deque
+from collections.abc import Iterable
 from itertools import zip_longest
-from typing import Dict, Iterable, List, Optional, Tuple, Union
+from typing import Optional, Union
 
 import cloudpickle
 import gymnasium as gym
@@ -29,8 +30,8 @@ def set_random_seed(seed: int, using_cuda: bool = False) -> None:
     """
     Seed the different random generators.
 
-    :param seed:
-    :param using_cuda:
+    :param seed: Seed
+    :param using_cuda: Whether CUDA is currently used
     """
     # Seed python RNG
     random.seed(seed)
@@ -46,7 +47,7 @@ def set_random_seed(seed: int, using_cuda: bool = False) -> None:
 
 
 # From stable baselines
-def explained_variance(y_pred: np.ndarray, y_true: np.ndarray) -> np.ndarray:
+def explained_variance(y_pred: np.ndarray, y_true: np.ndarray) -> float:
     """
     Computes fraction of variance that ypred explains about y.
     Returns 1 - Var[y-ypred] / Var[y]
@@ -62,7 +63,7 @@ def explained_variance(y_pred: np.ndarray, y_true: np.ndarray) -> np.ndarray:
     """
     assert y_true.ndim == 1 and y_pred.ndim == 1
     var_y = np.var(y_true)
-    return np.nan if var_y == 0 else 1 - np.var(y_true - y_pred) / var_y
+    return np.nan if var_y == 0 else float(1 - np.var(y_true - y_pred) / var_y)
 
 
 def update_learning_rate(optimizer: th.optim.Optimizer, learning_rate: float) -> None:
@@ -140,19 +141,20 @@ def get_device(device: Union[th.device, str] = "auto") -> th.device:
     """
     Retrieve PyTorch device.
     It checks that the requested device is available first.
-    For now, it supports only cpu and cuda.
-    By default, it tries to use the gpu.
+    For now, it supports only CPU and CUDA.
+    By default, it tries to use the GPU.
 
-    :param device: One for 'auto', 'cuda', 'cpu'
+    :param device: One of "auto", "cuda", "cpu",
+        or any PyTorch supported device (for instance "mps")
     :return: Supported Pytorch device
     """
-    # Cuda by default
+    # MPS/CUDA by default
     if device == "auto":
-        device = "cuda"
+        device = get_available_accelerator()
     # Force conversion to th.device
     device = th.device(device)
 
-    # Cuda not available
+    # CUDA not available
     if device.type == th.device("cuda").type and not th.cuda.is_available():
         return th.device("cpu")
 
@@ -415,7 +417,7 @@ def safe_mean(arr: Union[np.ndarray, list, deque]) -> float:
     return np.nan if len(arr) == 0 else float(np.mean(arr))  # type: ignore[arg-type]
 
 
-def get_parameters_by_name(model: th.nn.Module, included_names: Iterable[str]) -> List[th.Tensor]:
+def get_parameters_by_name(model: th.nn.Module, included_names: Iterable[str]) -> list[th.Tensor]:
     """
     Extract parameters from the state dict of ``model``
     if the name contains one of the strings in ``included_names``.
@@ -473,7 +475,7 @@ def polyak_update(
             th.add(target_param.data, param.data, alpha=tau, out=target_param.data)
 
 
-def obs_as_tensor(obs: Union[np.ndarray, Dict[str, np.ndarray]], device: th.device) -> Union[th.Tensor, TensorDict]:
+def obs_as_tensor(obs: Union[np.ndarray, dict[str, np.ndarray]], device: th.device) -> Union[th.Tensor, TensorDict]:
     """
     Moves the observation to the given device.
 
@@ -484,6 +486,8 @@ def obs_as_tensor(obs: Union[np.ndarray, Dict[str, np.ndarray]], device: th.devi
     if isinstance(obs, np.ndarray):
         return th.as_tensor(obs, device=device)
     elif isinstance(obs, dict):
+        if hasattr(th, "backends") and th.backends.mps.is_built():
+            return {key: th.as_tensor(_obs, dtype=th.float32, device=device) for (key, _obs) in obs.items()}
         return {key: th.as_tensor(_obs, device=device) for (key, _obs) in obs.items()}
     else:
         raise Exception(f"Unrecognized type of observation {type(obs)}")
@@ -517,7 +521,22 @@ def should_collect_more_steps(
         )
 
 
-def get_system_info(print_info: bool = True) -> Tuple[Dict[str, str], str]:
+def get_available_accelerator() -> str:
+    """
+    Return the available accelerator
+    (currently checking only for CUDA and MPS device)
+    """
+    if hasattr(th, "backends") and th.backends.mps.is_built():
+        # MacOS Metal GPU
+        th.set_default_dtype(th.float32)
+        return "mps"
+    elif th.cuda.is_available():
+        return "cuda"
+    else:
+        return "cpu"
+
+
+def get_system_info(print_info: bool = True) -> tuple[dict[str, str], str]:
     """
     Retrieve system and python env info for the current system.
 
@@ -532,7 +551,7 @@ def get_system_info(print_info: bool = True) -> Tuple[Dict[str, str], str]:
         "Python": platform.python_version(),
         "Stable-Baselines3": sb3.__version__,
         "PyTorch": th.__version__,
-        "GPU Enabled": str(th.cuda.is_available()),
+        "Accelerator": get_available_accelerator(),
         "Numpy": np.__version__,
         "Cloudpickle": cloudpickle.__version__,
         "Gymnasium": gym.__version__,
